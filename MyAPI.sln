@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30114.105
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MyAPI", "MyAPI.csproj", "{41EC28B5-F564-4AE2-9112-9982CCAB82E8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "K8S", "K8S", "{AA6DAAC7-4EF5-43DE-8108-8C24B615C1A2}"
+	ProjectSection(SolutionItems) = preProject
+		k8s-myapi.yaml = k8s-myapi.yaml
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{41EC28B5-F564-4AE2-9112-9982CCAB82E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41EC28B5-F564-4AE2-9112-9982CCAB82E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41EC28B5-F564-4AE2-9112-9982CCAB82E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{41EC28B5-F564-4AE2-9112-9982CCAB82E8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {CFD0BFB5-EB91-405B-A271-C7A9D08E10EF}
+	EndGlobalSection
+EndGlobal
