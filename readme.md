@@ -1,5 +1,5 @@
 ﻿
-# Kubernetes pod sthudown evaluation
+# Kubernetes pod shutdown evaluation
 What happens with a netcore application when Kubernetes sends a signal to terminate the pod?
 
 ## Run the image with Visual Studio
@@ -118,8 +118,8 @@ In program, the UseShutdownTimeout (default to wait for 5 seconds) seems to have
 The host application has ended without following this wait time?
 
 ## References
-https://kubernetes.io/docs/reference/kubectl/cheatsheet/
-https://github.com/juniormayhe/Scripts/tree/master/docker
-https://github.com/juniormayhe/Scripts/tree/master/kubernetes
-https://docs.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-3.1
-https://linux.die.net/Bash-Beginners-Guide/sect_12_01.html
+- https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+- https://github.com/juniormayhe/Scripts/tree/master/docker
+- https://github.com/juniormayhe/Scripts/tree/master/kubernetes
+- https://docs.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-3.1
+- https://linux.die.net/Bash-Beginners-Guide/sect_12_01.html
