@@ -49,8 +49,19 @@ SIGSTOP				17,19,23		Stop the process
 ```
 Signal 9 kills the process and will not wait for it to end.
 
+## Evaluating app shutdown on an independent pod deletion
 
-## Create the K8S cluster
+For the case where there are two pods created without a deployment, 
+behind the same load balancer, the pods will keep different names and 
+shutdown is done manually with kubectl delete. 
+
+We can only scale up or down at a top level object like a deployment 
+to affect the replicaset and cascade to the pod.
+
+But for the sake of testing of kubectl delete, we have created a cluster
+with two independent pods to evaluate how app behaves after the pod deletion.
+
+### Create the K8S cluster
 
 - Create a kubernetes cluster with two pods
 ```
@@ -68,7 +79,7 @@ kubectl apply -f k8s-myapi.yaml
 kubectl get all
 ```
 
-## Test the application shutdown
+### Test the application shutdown
 - open the logs of both container pods in separate windows
 terminal window 1
 ```
@@ -94,7 +105,7 @@ to readd the deleted pod, apply the yaml
 in postman open two runners with 1000 tries and trigger the execution, 
 then observe the logs and fire the kubectl delete to evaluate app shutdown behaviour
 
-## First impressions
+### First impressions
 
 Requests continue to arrive to the pod even after a deletion has been requested by kubernetes.
 In host lifecycle we can wait 25 seconds and the requests keep coming until the pod is completely terminated.
@@ -114,8 +125,83 @@ info: Microsoft.Hosting.Lifetime[0]
       Application is shutting down...
 
 ```
-In program, the UseShutdownTimeout (default to wait for 5 seconds) seems to have no effect when we increase to 30 seconds.
+In program, the UseShutdownTimeout, (default to wait for 5 seconds) seems to have no effect when we increase to 30 seconds.
 The host application has ended without following this wait time?
+
+
+## Evaluating app shutdown on a scale down of deployment
+
+For the case where there are two pods created with a deployment, 
+behind the same load balancer, the deployment will manage the created 
+containers in pods. We can perform a scale down from 2 pods to 1
+without needing to specify which pod name must be deleted. 
+
+delete the previous cluster with independents pods
+```
+kubectl delete -f k8s-myapi.yaml
+```
+
+start the new cluster with deployment to automatically create 2 pods, as defined in yaml specs section.
+```
+kubectl apply -f k8s-deployment-myapi.yaml  
+```
+
+- Check if loadbalancer and pods were created 
+```
+kubectl get all
+```
+
+### Test the application shutdown
+
+list the pods to get their names
+```
+kubectl get pods
+```
+- open the logs of both container pods in separate windows
+terminal window 1
+```
+kubectl logs -f pod/mydeployment-<random id of first pod>
+```
+
+terminal window 2
+```
+kubectl logs -f pod/mydeployment-<random id of second pod>
+```
+
+- open a terminal for scaling down the pods from 2 to 1 to evaluate the application shutdown in logs
+```
+kubectl scale --replicas=1 deployment mydeployment
+```
+
+```
+to scale back to 2 pods, apply the yaml
+```
+ kubectl apply -f k8s-deployment-myapi.yaml
+```
+
+- open postman
+in postman open two runners with 1000 tries and trigger the execution, 
+then observe the logs and fire the kubectl scale to evaluate app shutdown behaviour
+
+
+### First impressions
+
+The same behaviour happens, when we scale down 1 of the pods, the app gives some time to finish but the 
+ApplicationStopped message was never shown because the app was terminated suddenly.
+```
+07/17/2020 16:57:10: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: Running
+07/17/2020 16:57:10: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: Running
+07/17/2020 16:57:10: # this app is stopping. there may be incoming requests left
+07/17/2020 16:57:10: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: AfterSigterm
+07/17/2020 16:57:10: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: AfterSigterm
+...
+07/17/2020 16:57:35: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: AfterSigterm
+07/17/2020 16:57:35: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: AfterSigterm
+07/17/2020 16:57:35: Incoming request at /, Host: mydeployment-5957948974-gbpj8, State: AfterSigterm
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+```
+
 
 ## References
 - https://kubernetes.io/docs/reference/kubectl/cheatsheet/
@@ -123,3 +209,4 @@ The host application has ended without following this wait time?
 - https://github.com/juniormayhe/Scripts/tree/master/kubernetes
 - https://docs.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-3.1
 - https://linux.die.net/Bash-Beginners-Guide/sect_12_01.html
+- https://docs.microsoft.com/en-us/dotnet/architecture/containerized-lifecycle/design-develop-containerized-apps/build-aspnet-core-applications-linux-containers-aks-kubernetes
