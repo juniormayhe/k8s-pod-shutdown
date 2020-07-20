@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mydeployment
+spec:
+  replicas: 2
+  selector:
+      matchLabels:
+        name: mykubapp
+  template:
+    metadata:
+      labels:
+        name: mykubapp
+    spec:
+      containers:
+        - name: myapi
+          # image with UseShutdownTimeout 30s + sigint
+          image: juniormayhe/myapi:3
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: mykubapp
+spec:
+  ports:  
+    - protocol: TCP
+      port: 8080
+      targetPort: 80
+  selector:
+    name: mykubapp
+  type: LoadBalancer

@@ -19,4 +19,5 @@ RUN dotnet publish "MyAPI.csproj" -c Release -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+STOPSIGNAL SIGINT
 ENTRYPOINT ["dotnet", "MyAPI.dll"]

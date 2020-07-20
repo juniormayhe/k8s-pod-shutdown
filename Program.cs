@@ -11,18 +11,25 @@ namespace MyAPI
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            CreateHostBuilder(args).Build().Run();
-        }
-
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
+            var host = Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    //webBuilder.UseShutdownTimeout(TimeSpan.FromSeconds(30)); // default is 5
+                    Console.WriteLine("# app started");
+                    ////webBuilder.UseShutdownTimeout(TimeSpan.FromSeconds(30)); // default is 5
 
                     webBuilder.UseStartup<Startup>();
                 });
+            try
+            {
+                await host.Build().RunAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("# app was cancelled");
+                // suppress
+            }
+        }
     }
 }

@@ -1,18 +1,13 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 
 namespace MyAPI
@@ -20,6 +15,7 @@ namespace MyAPI
     public class Startup
     {
         private State state = State.Running;
+        private static int total = 0;
 
         public Startup(IConfiguration configuration)
         {
@@ -67,21 +63,25 @@ namespace MyAPI
                 var message = $"Host: {Environment.MachineName}, State: {state}";
 
                 //if (!context.Request.Path.Value.Contains("/favicon.ico"))
+                Interlocked.Increment(ref total);
+                Log($"Incoming request {total} at {context.Request.Path}, {message}");
 
-                Log($"Incoming request at {context.Request.Path}, {message}");
-
-
-                if (context.Request.Path.Value.Contains("slow"))
-                {
-                    await SleepAndPrintForSeconds(10);
-                }
-                else
-                {
-                    await Task.Delay(100);
-                }
+                await DoSomeWork(context);
 
                 await context.Response.WriteAsync(message);
             });
+        }
+
+        private async Task DoSomeWork(HttpContext context)
+        {
+            if (context.Request.Path.Value.Contains("slow"))
+            {
+                await SleepAndPrintForSeconds(2);
+            }
+            else
+            {
+                await Task.Delay(500);
+            }
         }
 
         private void ApplicationRequestsIncomingAfterStopRequest()
@@ -89,15 +89,20 @@ namespace MyAPI
             state = State.AfterSigterm;
 
             //did we receive more incoming requests after TERM?
-            Log("# this app is stopping. there may be incoming requests left");
-            Thread.Sleep(25000);
+            Log("# this app is stopping. wating 20 seconds for in-flight requests");
+            // while endpoints in kubernetes loadbalancer may take around 10 seconds to get updated
+            // we can sleep the app for 20 seconds to respond requests
+            Thread.Sleep(20000);
+            // the default grace period is 30 seconds for termination of app process
 
         }
 
         private void ApplicationRequestsAreCompleted()
         {
-
-            Log("# this app has stopped. all requests completed");
+            // in a graceful shutdown this is shown. 
+            // otherwise operation cancelled triggers in Main, 
+            // and all requests may have completed even after host is cancelled
+            Log($"# this app has stopped. all requests completed. latest {total}");
         }
 
         private void Log(string msg) => Console.WriteLine($"{DateTime.UtcNow}: {msg}");

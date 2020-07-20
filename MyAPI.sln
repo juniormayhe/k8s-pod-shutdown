@@ -5,11 +5,6 @@ VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MyAPI", "MyAPI.csproj", "{41EC28B5-F564-4AE2-9112-9982CCAB82E8}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "K8S", "K8S", "{AA6DAAC7-4EF5-43DE-8108-8C24B615C1A2}"
-	ProjectSection(SolutionItems) = preProject
-		k8s-myapi.yaml = k8s-myapi.yaml
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

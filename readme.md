@@ -1,6 +1,16 @@
 ﻿
+
+build
 # Kubernetes pod shutdown evaluation
 What happens with a netcore application when Kubernetes sends a signal to terminate the pod?
+
+How termination works
+
+- A SIGTERM signal is sent to the main process (PID 1) in each container, and a “grace period” countdown starts (defaults to 30 seconds - see below to change it).
+- Upon the receival of the SIGTERM, each container should start a graceful shutdown of the running application and exit.
+- If a container doesn’t terminate within the grace period, a SIGKILL signal will be sent and the container violently terminated.
+
+Ref: https://pracucci.com/graceful-shutdown-of-kubernetes-pods.html
 
 ## Run the image with Visual Studio
 
@@ -151,7 +161,7 @@ kubectl apply -f k8s-deployment-myapi.yaml
 kubectl get all
 ```
 
-### Test the application shutdown
+### Test the application shutdown with scale down
 
 list the pods to get their names
 ```
@@ -176,7 +186,7 @@ kubectl scale --replicas=1 deployment mydeployment
 ```
 to scale back to 2 pods, apply the yaml
 ```
- kubectl apply -f k8s-deployment-myapi.yaml
+kubectl apply -f k8s-deployment-myapi.yaml
 ```
 
 - open postman
@@ -202,6 +212,193 @@ info: Microsoft.Hosting.Lifetime[0]
       Application is shutting down...
 ```
 
+Instead of postman runner we also did another try with bombardier (125 connections, 1 million requests) 
+and get the same results where application has not ended gracefully. 
+```
+bombardier -c 125 -n 10000000 http://localhost:8080
+```
+
+```
+07/20/2020 08:42:28: Incoming request at /, Host: mydeployment-5957948974-gff68, State: Running
+07/20/2020 08:42:28: Incoming request at /, Host: mydeployment-5957948974-gff68, State: Running
+07/20/2020 08:42:28: # this app is stopping. there may be incoming requests left
+07/20/2020 08:42:29: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+...
+07/20/2020 08:42:53: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+07/20/2020 08:42:54: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+07/20/2020 08:42:54: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+07/20/2020 08:42:54: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+07/20/2020 08:42:54: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+07/20/2020 08:42:54: Incoming request at /, Host: mydeployment-5957948974-gff68, State: AfterSigterm
+rpc error: code = Unknown desc = Error: No such container: e967a964fe30af6cc90964f8c3e6d245c91cba89c21e04eff17c84ea198a653b
+```
+
+### Does UseShutdownTimeout have any effect?
+build a new image with UseShutdownTimeout in Program.cs
+
+```
+docker build -t juniormayhe/myapi:2 .
+```
+
+delete previous deployment and wait 30 seconds
+```
+kubectl delete -f k8s-deployment-myapi.yaml
+```
+
+create a new deployment for new image juniormayhe/myapi:2
+```
+kubectl apply -f k8s-deployment-myapi-timeout.yaml
+```
+
+copy the new pods ids
+```
+kubectl get all
+```
+
+run in different terminals each pod´s app 
+terminal window 1
+```
+kubectl logs -f pod/mydeployment-<random id of first pod>
+```
+
+terminal window 2
+```
+kubectl logs -f pod/mydeployment-<random id of second pod>
+```
+
+### First impressions
+The UseShutdownTimeout has no effect. 25 seconds later the signal, the app got interrupted.
+the 30 seconds for timeout did not have any effect to increase time for app to respond requests.
+```
+07/20/2020 11:25:43: Incoming request at /, Host: mydeployment-7587654d6c-kpv8l, State: Running
+07/20/2020 11:25:43: # this app is stopping. there may be incoming requests left
+07/20/2020 11:25:43: Incoming request at /, Host: mydeployment-7587654d6c-kpv8l, State: AfterSigterm
+...
+07/20/2020 11:26:08: Incoming request at /, Host: mydeployment-7587654d6c-kpv8l, State: AfterSigterm
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+```
+
+## Is signint being passed to app?
+
+Is docker entrypoint receiving the signint signal to gracefully terminate the app?
+
+Our process has PID 1, after sigterm literally nothing would happen until Docker reaches timeout 
+and sends a SIGKILL to the entrypoint.
+
+```
+winpty kubectl exec -it mydeployment-7587654d6c-5qm84 sh
+# ps aux
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  2.3 12007896 48008 ?      Ssl  11:35   0:00 dotnet MyAPI.dll
+root       595  0.0  0.0   2388   756 pts/0    Ss   11:53   0:00 sh
+root       943  0.0  0.1   7640  2692 pts/0    R+   11:54   0:00 ps aux
+```
+
+Let´s avoid sigint being bounced by adding to dockerfile 
+
+```
+STOPSIGNAL SIGINT
+```
+and rebuild a new image:
+```
+docker build -t juniormayhe/myapi:3 .
+```
+
+### First impressions
+The app seems to receive sigint signal and gets interrupted after 25 seconds
+```
+07/20/2020 13:20:17: Incoming request at /, Host: mydeployment-54f9fff75b-27p2q, State: Running
+07/20/2020 13:20:17: # this app is stopping. there may be incoming requests left
+07/20/2020 13:20:17: Incoming request at /, Host: mydeployment-54f9fff75b-27p2q, State: AfterSigterm
+...
+07/20/2020 13:20:42: Incoming request at /, Host: mydeployment-54f9fff75b-27p2q, State: AfterSigterm
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+Unhandled exception. System.OperationCanceledException: The operation was canceled.
+   at System.Threading.CancellationToken.ThrowOperationCanceledException()
+   at Microsoft.Extensions.Hosting.Internal.Host.StopAsync(CancellationToken cancellationToken)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.WaitForShutdownAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.Run(IHost host)
+   at MyAPI.Program.Main(String[] args) in /src/Program.cs:line 17
+rpc error: code = Unknown desc = Error: No such container: e82a05372a7546c6f2117eb6528f861eb0c161aedc905ac8b4ff0583481a85f5
+```
+Must we implement anything to handle Host StopAsync?
+
+### Must we give some extra time for app to finish by changing Kubernetes yaml file? 
+In deployment we have added a terminal grace period to extend the wait time before kubernetes shutdown the app.
+```
+  template:
+    metadata:
+      labels:
+        name: mykubapp
+    spec:
+      terminationGracePeriodSeconds: 60
+```
+
+delete previous deployment
+```
+kubectl delete -f k8s-deployment-myapi-sigint.yaml
+```
+
+Apply the extended grace time to 60 seconds
+```
+kubectl apply -f k8s-deployment-myapi-grace.yaml
+```
+Get pods name and tail the logs.
+
+Start bombardier again, scale down and monitor the logs.
+```
+kubectl scale --replicas=1 deployment mydeployment
+```
+
+From sigterm to app shut down, again we have 25 seconds. 1 second later after shutdown, we still received requests.
+The app seems to be stopped before reaching the maxiumum of 60 seconds grace period.
+The shutdown again is not graceful and the application still had unfinished requests to handle.
+```
+07/20/2020 13:42:15: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: Running
+07/20/2020 13:42:15: # this app is stopping. there may be incoming requests left
+07/20/2020 13:42:15: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: AfterSigterm
+...
+07/20/2020 13:42:40: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: AfterSigterm
+info: Microsoft.Hosting.Lifetime[0]
+      Application is shutting down...
+07/20/2020 13:42:40: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: AfterSigterm
+...
+07/20/2020 13:42:41: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: AfterSigterm
+Unhandled exception. System.OperationCanceledException: The operation was canceled.
+   at System.Threading.CancellationToken.ThrowOperationCanceledException()
+   at Microsoft.Extensions.Hosting.Internal.Host.StopAsync(CancellationToken cancellationToken)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.WaitForShutdownAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
+   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.Run(IHost host)
+   at MyAPI.Program.Main(String[] args) in /src/Program.cs:line 17
+rpc error: code = Unknown desc = Error: No such container: 14bc6403a62980cc93991e12668f63421636f942315f00c60a80384c04a409dc
+```
+
+### Checking if all requests are being responded
+Let´s count the requests to check if all requests were satisfied.
+
+While running both bombardier and postman all requests were fulfilled:
+
+- 200 requested by postman, status 200 ok
+- 1000 requested by bombardier, status 200 ok
+
+Bombarding http://localhost:8080 with 1000 request(s) using 10 connection(s)
+ 1000 / 1000 [===================================================================================================================================================] 100.00% 95/s 10s
+Done!
+Statistics        Avg      Stdev        Max
+  Reqs/sec        96.96      58.06     307.48
+  Latency      102.91ms     5.13ms   173.69ms
+  HTTP codes:
+    1xx - 0, 2xx - 1000, 3xx - 0, 4xx - 0, 5xx - 0
+    others - 0
+  Throughput:    21.19KB/s
 
 ## References
 - https://kubernetes.io/docs/reference/kubectl/cheatsheet/
