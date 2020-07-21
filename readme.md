@@ -356,9 +356,10 @@ Start bombardier again, scale down and monitor the logs.
 kubectl scale --replicas=1 deployment mydeployment
 ```
 
-From sigterm to app shut down, again we have 25 seconds. 1 second later after shutdown, we still received requests.
-The app seems to be stopped before reaching the maxiumum of 60 seconds grace period.
-The shutdown again is not graceful and the application still had unfinished requests to handle.
+At this moment, Kubernetes sends a SIGTERM to one of the containers, which passes the signal to the netcore application, which by its turn triggers the ApplicationStopping to wait the number of seconds defined in Thread.Sleep, if implemented. After the SIGTERM, remaining requests were processed. 
+
+In the following evidence, the Thread.Sleep was set to 25 seconds, and an operation canceled shows up indicating the process was ended. 
+
 ```
 07/20/2020 13:42:15: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: Running
 07/20/2020 13:42:15: # this app is stopping. there may be incoming requests left
@@ -370,15 +371,7 @@ info: Microsoft.Hosting.Lifetime[0]
 07/20/2020 13:42:40: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: AfterSigterm
 ...
 07/20/2020 13:42:41: Incoming request at /, Host: mydeployment-7ccbdff885-mkf54, State: AfterSigterm
-Unhandled exception. System.OperationCanceledException: The operation was canceled.
-   at System.Threading.CancellationToken.ThrowOperationCanceledException()
-   at Microsoft.Extensions.Hosting.Internal.Host.StopAsync(CancellationToken cancellationToken)
-   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.WaitForShutdownAsync(IHost host, CancellationToken token)
-   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
-   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.RunAsync(IHost host, CancellationToken token)
-   at Microsoft.Extensions.Hosting.HostingAbstractionsHostExtensions.Run(IHost host)
-   at MyAPI.Program.Main(String[] args) in /src/Program.cs:line 17
-rpc error: code = Unknown desc = Error: No such container: 14bc6403a62980cc93991e12668f63421636f942315f00c60a80384c04a409dc
+07/20/2020 13:42:41: # app was cancelled
 ```
 
 ### Checking if all requests are being responded
@@ -389,6 +382,7 @@ While running both bombardier and postman all requests were fulfilled:
 - 200 requested by postman, status 200 ok
 - 1000 requested by bombardier, status 200 ok
 
+```
 Bombarding http://localhost:8080 with 1000 request(s) using 10 connection(s)
  1000 / 1000 [===================================================================================================================================================] 100.00% 95/s 10s
 Done!
@@ -399,6 +393,28 @@ Statistics        Avg      Stdev        Max
     1xx - 0, 2xx - 1000, 3xx - 0, 4xx - 0, 5xx - 0
     others - 0
   Throughput:    21.19KB/s
+```
+
+We also did the same test for the scenario where an image has no Thread.Sleep implemented. All requests were again responded correctly. 
+
+In all scenarios, we never see the message from ApplicationStopped event because the netcore app process gets canceled after all requests have been fulfilled, which seems to be the normal behavior for cancellation.
+
+## Conclusions
+
+The netcore IWebHostBuilder.UseShutdownTimeout has no effect because the higher object has priority on shutdown policy, so the app cannot extend its own grace period because it must obey to the deployment specification, defined in Kubernetes declarative yaml.
+
+The Thread.Sleep is optional, you put add it in the host lifetime during netcore application startup. The netcore application is not affected by this delay since it seems to be tied to the host process in Program.
+
+We tested it with and without this tweak in host lifetime and the requests were all satisfied. We even simulated a 500ms response time which is the average response time of Routing Service and all requests were responded after the scale down.
+
+Kubernetes gives a default of 30 seconds for the container to shut down. Within 30 seconds, in around 10 seconds it updates the Load Balancer. 
+
+If the application have some final processing to do, we extend the time in ApplicationStopping event to deal with pending tasks. Or we can avoid this implementation and extend the time via Kubernetes declarative yaml with the setting terminationGracePeriodSeconds: 60 so the application has more time to do some final processing within this time limit.
+
+There would be an edge case where the load balancer takes more time to be updated, and the pod continues to receive requests after the SIGTERM (shutdown request) was received by the application.
+We were unable to reproduce this case to simulate slowness in the load balancer, because all requests were responded within the expected time.
+
+To get around this possible issue with Kubernetes load balancer, there is a suggestion to put a Thread.Sleep to give the load balancer time to update while the application responds to requests.
 
 ## References
 - https://kubernetes.io/docs/reference/kubectl/cheatsheet/
