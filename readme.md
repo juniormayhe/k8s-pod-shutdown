@@ -20,11 +20,9 @@ The signal codes evaluated in this investigation are:
 
 | Signal name  | Signal value  | Effect |
 |---|---|---|
-| SIGINT  | 2  | 	
-Kubernetes says “could you please stop what you are doing?” and sends an interrupt from keyboard message (aka CTRL + C). The netcore application has a chance to do some cleanup and graceful shutdown.  |
+| SIGINT  | 2  | Kubernetes says “could you please stop what you are doing?” and sends an interrupt from keyboard message (aka CTRL + C). The netcore application has a chance to do some cleanup and graceful shutdown.  |
 | SIGKILL | 9  | Kubernetes lost its patience and shut down the container and interrupts whatever its netcore app is doing.  |
-| SIGTERM | 15 | 	
-Kubernetes asks for termination of the process but gives a chance for a cleanup and a graceful netcore application shutdown.   |
+| SIGTERM | 15 | Kubernetes asks for termination of the process but gives a chance for a cleanup and a graceful netcore application shutdown.   |
 
 ## Preparing the evaluation
 
