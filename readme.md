@@ -317,7 +317,7 @@ with two independent pods to evaluate how app behaves after the pod deletion.
 
 ### Create the K8S cluster
 
-- Create a kubernetes cluster with two pods
+Create a kubernetes cluster with two pods
 ```
  kubectl apply -f k8s-myapi.yaml
 ```
@@ -328,13 +328,14 @@ kubectl delete -f k8s-myapi.yaml
 kubectl apply -f k8s-myapi.yaml
 ```
 
-- Check if loadbalancer and pods were created 
+Check if loadbalancer and pods were created 
 ```
 kubectl get all
 ```
 
 ### Test the application shutdown
-- open the logs of both container pods in separate windows
+open the logs of both container pods in separate windows
+
 terminal window 1
 ```
 kubectl logs -f pod/myapp-pod1
@@ -345,7 +346,7 @@ terminal window 2
 kubectl logs -f pod/myapp-pod2
 ```
 
-- open a terminal for deleting the pod to evaluate the application shutdown in logs
+open a terminal for deleting the pod to evaluate the application shutdown in logs
 ```
 kubectl delete pod/myapp-pod1
 ```
@@ -355,7 +356,6 @@ to readd the deleted pod, apply the yaml
  kubectl apply -f k8s-myapi.yaml
 ```
 
-- open postman
 in postman open two runners with 1000 tries and trigger the execution, 
 then observe the logs and fire the kubectl delete to evaluate app shutdown behaviour
 
@@ -377,7 +377,6 @@ ApplicationStopped only shows up if the application has exited normally.
 07/16/2020 16:42:43: Incoming request at /, Host: myapp-pod1, State: AfterSigterm
 info: Microsoft.Hosting.Lifetime[0]
       Application is shutting down...
-
 ```
 In program, the UseShutdownTimeout, (default to wait for 5 seconds) seems to have no effect when we increase to 30 seconds.
 The host application has ended without following this wait time?
@@ -400,7 +399,7 @@ start the new cluster with deployment to automatically create 2 pods, as defined
 kubectl apply -f k8s-deployment-myapi.yaml  
 ```
 
-- Check if loadbalancer and pods were created 
+check if loadbalancer and pods were created 
 ```
 kubectl get all
 ```
@@ -411,7 +410,7 @@ list the pods to get their names
 ```
 kubectl get pods
 ```
-- open the logs of both container pods in separate windows
+open the logs of both container pods in separate windows
 terminal window 1
 ```
 kubectl logs -f pod/mydeployment-<random id of first pod>
@@ -422,18 +421,16 @@ terminal window 2
 kubectl logs -f pod/mydeployment-<random id of second pod>
 ```
 
-- open a terminal for scaling down the pods from 2 to 1 to evaluate the application shutdown in logs
+open a terminal for scaling down the pods from 2 to 1 to evaluate the application shutdown in logs
 ```
 kubectl scale --replicas=1 deployment mydeployment
 ```
 
-```
 to scale back to 2 pods, apply the yaml
 ```
 kubectl apply -f k8s-deployment-myapi.yaml
 ```
 
-- open postman
 in postman open two runners with 1000 tries and trigger the execution, 
 then observe the logs and fire the kubectl scale to evaluate app shutdown behaviour
 
